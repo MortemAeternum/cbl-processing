@@ -9,7 +9,7 @@ repository = "https://github.com/MortemAeternum/permadeath-builds"
 readme = "README.md"
 keywords = ["ddo", "character builder", "parser", "plaintext"]
 categories = ["Parser implementations", "Games"]
-license = "AGPL-3.0-or-later"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 lazy_static = "1.3.0"
