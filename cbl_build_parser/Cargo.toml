@@ -1,0 +1,27 @@
+[package]
+name = "cbl_build_parser"
+version = "0.1.0"
+authors = ["MortemAeternum <mortem-aeternum@protonmail.com>"]
+edition = "2018"
+description = "Parses *.build files emitted by EllisDee37’s Character Builder Lite"
+homepage = "https://mortem-aeternum.neocities.org/"
+repository = "https://github.com/MortemAeternum/permadeath-builds"
+readme = "README.md"
+keywords = ["ddo", "character builder", "parser", "plaintext"]
+categories = ["Parser implementations", "Games"]
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+lazy_static = "1.3.0"
+regex = "1.2.1"
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = "fat"
+debug-assertions = false
+codegen-units = 1
+panic = "abort"
+incremental = false
+overflow-checks = false

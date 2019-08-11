@@ -1,0 +1,192 @@
+[Overview]
+
+Name: Wartrapper
+Race: Drow
+Alignment: True Neutral
+MaxLevels: 20
+
+Class: Bard
+Class: Fighter
+Class: Rogue
+
+Level: 1	Rogue
+Level: 2	Bard
+Level: 3	Fighter
+Level: 4	Bard
+Level: 5	Bard
+Level: 6	Bard
+Level: 7	Bard
+Level: 8	Bard
+Level: 9	Bard
+Level: 10	Bard
+Level: 11	Fighter
+Level: 12	Fighter
+Level: 13	Bard
+Level: 14	Bard
+Level: 15	Fighter
+Level: 16	Bard
+Level: 17	Bard
+Level: 18	Bard
+Level: 19	Bard
+Level: 20	Bard
+
+
+[Stats]
+
+Preferred: Adventurer
+
+Champion: No
+Hero: No
+Legend: No
+;    Advn  Chmp  Hero  Lgnd  Tome
+;    ----  ----  ----  ----  ----
+STR:  10    10    10    10      
+DEX:                            
+CON:   6     6     6     6      
+INT:   6     6     6     6      
+WIS:                            
+CHA:   6     6     6     6      
+;    ----  ----  ----  ----
+;     28    28    28    28   
+
+Levelup: 0	Strength
+Levelup: 4	Strength
+Levelup: 8	Strength
+Levelup: 12	Strength
+Levelup: 16	Strength
+Levelup: 20	Strength
+Levelup: 24	Strength
+Levelup: 28	Strength
+
+
+[Skills]
+
+;         1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  Tome
+;        ------------------------------------------------------------------------------------
+Balance:  4                                                                                 
+Bluff  :                                                                                    
+Concent:  4                                                                                 
+Diplo  :                                                                                    
+Disable:  4   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2     
+Haggle :                                                                                    
+Heal   :  4               2   2   2   1   1   1                           2   2   2   1     
+Hide   :                                                                                    
+Intim  :                                                                                    
+Jump   :  4                                                                                 
+Listen :                                                                                    
+Move Si:                                                                                    
+Open Lo:  4                                                                                 
+Perform:  4   3       2   1   1   1   1   1   1           1   3       2   1   1   1   1     
+Repair :                                                                                    
+Search :  4   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2     
+Spellcr:                                                                                    
+Spot   :  4   2   1   3   2   2   2   2   2   2   1   1   4   2   1   3   2   2   2   2     
+Swim   :                                                                                    
+Tumble :  4                                                                                 
+UMD    :  4                           1   1   1                                       1     
+
+
+[Feats]
+
+Standard: Heroic 1	Power Attack
+Standard: Heroic 3	Force of Personality
+Standard: Heroic 6	Great Cleave
+Standard: Heroic 9	Extend Spell
+Standard: Heroic 12	Quicken Spell
+Standard: Heroic 15	Two Handed Fighting
+Standard: Heroic 18	Improved Bardic Music
+
+Class: Fighter 1	Cleave
+Class: Fighter 2	Improved Critical: Slashing
+Class: Fighter 4	Improved Two Handed Fighting
+
+
+[Spells]
+
+Spell: Bard 1	Cure Light Wounds
+Spell: Bard 1	Focusing Chant
+Spell: Bard 1	Expeditious Retreat
+Spell: Bard 1	Remove Fear
+
+Spell: Bard 2	Blur
+Spell: Bard 2	Cure Moderate Wounds
+Spell: Bard 2	Heroism
+Spell: Bard 2	Invisibility
+
+Spell: Bard 3	Cure Serious Wounds
+Spell: Bard 3	Displacement
+Spell: Bard 3	Haste
+Spell: Bard 3	Good Hope
+
+Spell: Bard 4	Cure Critical Wounds
+Spell: Bard 4	Freedom of Movement
+Spell: Bard 4	Break Enchantment
+Spell: Bard 4	Dimension Door
+
+Spell: Bard 5	Greater Heroism
+Spell: Bard 5	Mass Cure Light Wounds
+Spell: Bard 5	Shadow Walk
+
+
+[Enhancements]
+
+Tier5: Warchanter
+
+Tree: Drow
+Type: Race
+ClassLevels: 20
+
+Tree: Warchanter
+Type: Class
+Source: Bard
+ClassLevels: 15
+Ability: Tier 0: Skaldic: Constitution
+Ability: Tier 0: Weapon Training
+Ability: Tier 0: Song of Heroism
+Ability: Tier 0: Fighting Spirit
+Ability: Tier 1: Poetic Edda (Rank 3)
+Ability: Tier 1: Enchant Weapon
+Ability: Tier 1: Rough and Ready (Rank 3)
+Ability: Tier 2: Words of Encouragement (Rank 3)
+Ability: Tier 2: Arcane Shield Chant (Rank 3)
+Ability: Tier 2: Iced Edges (Rank 3)
+Ability: Tier 3: Ironskin Chant (Rank 3)
+Ability: Tier 3: Obstinance (Rank 3)
+Ability: Tier 3: High Spirits (Rank 1)
+Ability: Tier 4: Reckless Chant (Rank 3)
+Ability: Tier 4: Armorer
+Ability: Tier 5: Movement Booster: Expeditious Chant (Rank 3)
+Ability: Tier 5: Chant of Power (Rank 3)
+Ability: Tier 5: Howl of the North
+Ability: Tier 5: Kingly Recovery (Rank 3)
+
+Tree: Stalwart Defender
+Type: Class
+Source: Fighter
+ClassLevels: 4
+Ability: Tier 0: Toughness
+Ability: Tier 0: Stalwart Defense
+Ability: Tier 1: Improved Stalwart Defense: Durable Defense (Rank 3)
+Ability: Tier 1: Stalwart Defensive Mastery (Rank 3)
+Ability: Tier 2: Improved Stalwart Defense: Resilient Defense (Rank 3)
+Ability: Tier 2: Armor Expertise (Rank 3)
+Ability: Tier 3: Greater Stalwart Defense: Tenacious Defense (Rank 3)
+Ability: Tier 3: Shield Expertise (Rank 3)
+Ability: Tier 4: Greater Stalwart Defense: Hardy Defense (Rank 3)
+Ability: Tier 4: Reinforced Defense: Reinforced Armor (Rank 3)
+
+Tree: Swashbuckler
+Type: Class
+Source: Bard
+ClassLevels: 15
+Ability: Tier 0: Confidence
+Ability: Tier 1: Tavern Shanties (Rank 3)
+
+Tree: Spellsinger
+Type: Class
+Source: Bard
+ClassLevels: 15
+Ability: Tier 0: Spellsinger
+Ability: Tier 1: Studies: Magical (Rank 3)
+Ability: Tier 1: Lingering Songs (Rank 2)
+
