@@ -1,0 +1,69 @@
+[Overview]
+
+Name: tester0
+Race: Human
+Alignment: True Neutral
+MaxLevels: 20
+
+Class: Cleric
+
+
+[Stats]
+
+Preferred: Champion
+
+Adventurer: No
+;    Advn  Chmp  Hero  Lgnd  Tome
+;    ----  ----  ----  ----  ----
+STR:   2     6     6     6      
+DEX:   4     4     4     4     1
+CON:   6     6     6     6      
+INT:               2     2     2
+WIS:  16    16    16    16      
+CHA:                            
+;    ----  ----  ----  ----
+;     28    32    34    34   
+
+Levelup: 0	
+Levelup: 4	Strength
+Levelup: 8	Dexterity
+Levelup: 12	Constitution
+Levelup: 16	Intelligence
+Levelup: 20	Wisdom
+Levelup: 24	
+Levelup: 28	
+
+
+[Skills]
+
+;         1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  Tome
+;        ------------------------------------------------------------------------------------
+Balance:                                                                                    
+Bluff  :                                                                                    
+Concent:                                                                                    
+Diplo  :                                                                                    
+Disable:                                                                                    
+Haggle :                                                                                    
+Heal   :  4   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1     
+Hide   :                                                                                    
+Intim  :                                                                                    
+Jump   :                                                                                    
+Listen :                                                                                    
+Move Si:                                                                                    
+Open Lo:                                                                                    
+Perform:                                                                                    
+Repair :                                                                                    
+Search :                                                                                    
+Spellcr:  4   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1     
+Spot   :                                                                                    
+Swim   :                                                                                    
+Tumble :                                                                                    
+UMD    :                                                                                    
+
+
+[Enhancements]
+
+Tree: Human
+Type: Race
+ClassLevels: 20
+

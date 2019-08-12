@@ -19,6 +19,14 @@ pub struct CharacterBuild {
     alignment:  Alignment,
     max_levels: u8,
     levels:     Vec<Class>,
+    // [Stats]
+    preferred_build_type: BuildType,
+    adventurer_stats:     Option<Stats>,
+    champion_stats:       Option<Stats>,
+    hero_stats:           Option<Stats>,
+    legend_stats:         Option<Stats>,
+    stat_tomes:           Stats,
+    stat_levelups:        [Option<Ability>; 7],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,6 +84,39 @@ pub enum Class {
     Wizard,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum BuildType {
+    Adventurer,
+    Champion,
+    Hero,
+    Legend,
+}
+
+/// The struct stores the number of build points spent on each ability, **not**
+/// the ability score itself. Or, in the case of tomes, it stores the obvious
+/// values.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Stats {
+    str_pts: u8,
+    dex_pts: u8,
+    con_pts: u8,
+    int_pts: u8,
+    wis_pts: u8,
+    cha_pts: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Ability {
+    Str,
+    Dex,
+    Con,
+    Int,
+    Wis,
+    Cha,
+}
+
 #[derive(Debug)]
 pub enum ParseError {
     IoError(io::Error),
@@ -92,6 +133,9 @@ pub enum ParseError {
     InvalidLevelNum(u8),
     LevelsOutOfOrder,
     UndeclaredClass(Class),
+    UnknownBuildType(String),
+    BadLevelupLevel(usize),
+    UnknownAbility(String),
 }
 
 #[repr(u8)]
@@ -175,6 +219,77 @@ impl std::str::FromStr for Class {
     }
 }
 
+impl Default for Stats {
+    fn default() -> Self {
+        Stats {
+            str_pts: 0,
+            dex_pts: 0,
+            con_pts: 0,
+            int_pts: 0,
+            wis_pts: 0,
+            cha_pts: 0,
+        }
+    }
+}
+
+impl std::str::FromStr for BuildType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Adventurer" => Ok(Self::Adventurer),
+            "Champion" => Ok(Self::Champion),
+            "Hero" => Ok(Self::Hero),
+            "Legend" => Ok(Self::Legend),
+            _ => Err(()),
+        }
+    }
+}
+
+impl std::str::FromStr for Ability {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "STR" | "Strength" => Ok(Ability::Str),
+            "DEX" | "Dexterity" => Ok(Ability::Dex),
+            "CON" | "Constitution" => Ok(Ability::Con),
+            "INT" | "Intelligence" => Ok(Ability::Int),
+            "WIS" | "Wisdom" => Ok(Ability::Wis),
+            "CHA" | "Charisma" => Ok(Ability::Cha),
+            _ => Err(()),
+        }
+    }
+}
+
+impl std::ops::Index<Ability> for Stats {
+    type Output = u8;
+
+    fn index(&self, ability: Ability) -> &Self::Output {
+        match ability {
+            Ability::Str => &self.str_pts,
+            Ability::Dex => &self.dex_pts,
+            Ability::Con => &self.con_pts,
+            Ability::Int => &self.int_pts,
+            Ability::Wis => &self.wis_pts,
+            Ability::Cha => &self.cha_pts,
+        }
+    }
+}
+
+impl std::ops::IndexMut<Ability> for Stats {
+    fn index_mut(&mut self, ability: Ability) -> &mut Self::Output {
+        match ability {
+            Ability::Str => &mut self.str_pts,
+            Ability::Dex => &mut self.dex_pts,
+            Ability::Con => &mut self.con_pts,
+            Ability::Int => &mut self.int_pts,
+            Ability::Wis => &mut self.wis_pts,
+            Ability::Cha => &mut self.cha_pts,
+        }
+    }
+}
+
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
@@ -200,6 +315,11 @@ impl fmt::Display for ParseError {
             Self::LevelsOutOfOrder =>
                 f.write_str("Levels are listed out of order"),
             Self::UndeclaredClass(c) => write!(f, "Undeclared class: {:?}", c),
+            Self::UnknownBuildType(b) =>
+                write!(f, "Unknown build type: {}", b),
+            Self::BadLevelupLevel(l) =>
+                write!(f, "Bad ability score increase level: {}", l),
+            Self::UnknownAbility(a) => write!(f, "Unknown ability: {}", a),
         }
     }
 }
@@ -231,6 +351,12 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
             Regex::new(r"^Class:\s+([A-Za-z ]+)$").unwrap();
         static ref LEVEL_RE: Regex =
             Regex::new(r"^Level:\s+([0-9]{1,2})\s+([A-Za-z ]+)$").unwrap();
+
+        // [Stats] regexps //
+        static ref PREFERRED_RE: Regex=Regex::new(r"^Preferred:\s+([A-Z][A-Za-z]+)$").unwrap();
+        static ref NO_RE:Regex=Regex::new(r"^(Adventurer|Champion|Hero|Legend):\s+No$").unwrap();
+        static ref ABILITY_RE:Regex=Regex::new(r"^(STR|DEX|CON|INT|WIS|CHA):  (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])     ( |[1-9])$").unwrap();
+        static ref LEVELUP_RE:Regex=Regex::new(r"^Levelup:\s+([0-9]{1,2})\s+([A-Z][a-z]+)$").unwrap();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -241,6 +367,15 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
     let mut max_levels = 20;
     let mut classes: [Option<Class>; 3] = [None, None, None];
     let mut levels = Vec::with_capacity(20);
+
+    // [Stats]
+    let mut preferred_build_type = BuildType::Adventurer;
+    let mut adventurer_stats = Some(Stats::default());
+    let mut champion_stats = Some(Stats::default());
+    let mut hero_stats = Some(Stats::default());
+    let mut legend_stats = Some(Stats::default());
+    let mut stat_tomes = Stats::default();
+    let mut stat_levelups = [None, None, None, None, None, None, None];
     ////////////////////////////////////////////////////////////////
 
     let mut heading = Heading::None;
@@ -338,11 +473,81 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
 
                     levels.push(level_class);
                 },
+            Heading::Stats =>
+                if let Some(preferred_caps) = PREFERRED_RE.captures(&line) {
+                    let preferred_str =
+                        preferred_caps.get(1).unwrap().as_str();
+                    preferred_build_type =
+                        preferred_str.parse().map_err(|_| {
+                            ParseError::UnknownBuildType(
+                                preferred_str.to_owned(),
+                            )
+                        })?;
+                } else if let Some(no_caps) = NO_RE.captures(&line) {
+                    match no_caps.get(1).unwrap().as_str().as_bytes()[0] {
+                        b'A' => adventurer_stats = None,
+                        b'C' => champion_stats = None,
+                        b'H' => hero_stats = None,
+                        b'L' => legend_stats = None,
+                        _ => unreachable!(), // Unreachable due to regexp
+                    }
+                } else if let Some(ability_caps) = ABILITY_RE.captures(&line) {
+                    // Unwrapping because the regexp ensures successful parse
+                    let ability =
+                        ability_caps.get(1).unwrap().as_str().parse().unwrap();
+
+                    (&mut [
+                        adventurer_stats.as_mut(),
+                        champion_stats.as_mut(),
+                        hero_stats.as_mut(),
+                        legend_stats.as_mut(),
+                        Some(&mut stat_tomes),
+                    ])
+                        .iter_mut()
+                        .zip(2..)
+                        .filter_map(|(maybe_stats, cg)| match maybe_stats {
+                            Some(s) => Some((s, cg)),
+                            _ => None,
+                        })
+                        .for_each(|(stats, cap_grp)| {
+                            stats[ability] = ability_caps
+                                .get(cap_grp)
+                                .unwrap()
+                                .as_str()
+                                .trim_start()
+                                .parse()
+                                .unwrap_or(0); // CBL uses whitespace to mean 0
+                        });
+                } else if let Some(levelup_caps) = LEVELUP_RE.captures(&line) {
+                    // Unwrapping because the regexp ensures successful parse
+                    let levelup_level = levelup_caps
+                        .get(1)
+                        .unwrap()
+                        .as_str()
+                        .parse::<usize>()
+                        .unwrap();
+                    if levelup_level % 4 != 0 {
+                        return Err(ParseError::BadLevelupLevel(
+                            levelup_level,
+                        ));
+                    }
+                    let levelup_index = levelup_level / 4 - 1;
+
+                    let levelup_ability_str =
+                        levelup_caps.get(2).unwrap().as_str();
+                    stat_levelups[levelup_index] =
+                        Some(levelup_ability_str.parse().map_err(|_| {
+                            ParseError::UnknownAbility(
+                                levelup_ability_str.to_owned(),
+                            )
+                        })?);
+                },
             _ => {},
         }
     }
 
     Ok(CharacterBuild {
+        // [Overview]
         name,
         race: race.ok_or(ParseError::NoRace)?,
         alignment: alignment.ok_or(ParseError::NoAlignment)?,
@@ -361,9 +566,19 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                 levels.len(),
             ));
         },
+
+        // [Stats]
+        preferred_build_type,
+        adventurer_stats,
+        champion_stats,
+        hero_stats,
+        legend_stats,
+        stat_tomes,
+        stat_levelups,
     })
 }
 
+/*
 mod tests {
     use super::*;
 
@@ -407,3 +622,4 @@ mod tests {
         );
     }
 }
+*/
