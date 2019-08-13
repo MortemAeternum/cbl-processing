@@ -1,9 +1,11 @@
 #![warn(clippy::all)]
 
+extern crate fxhash;
 #[macro_use]
 extern crate lazy_static;
 extern crate regex;
 
+use fxhash::FxHashMap as HashMap;
 use regex::Regex;
 use std::{
     self,
@@ -27,6 +29,8 @@ pub struct CharacterBuild {
     legend_stats:         Option<Stats>,
     stat_tomes:           Stats,
     stat_levelups:        [Option<Ability>; 7],
+    // [Skills]
+    skills: Skills,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,7 +100,7 @@ pub enum BuildType {
 /// The struct stores the number of build points spent on each ability, **not**
 /// the ability score itself. Or, in the case of tomes, it stores the obvious
 /// values.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stats {
     str_pts: u8,
     dex_pts: u8,
@@ -115,6 +119,43 @@ pub enum Ability {
     Int,
     Wis,
     Cha,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum Skill {
+    Balance,
+    Bluff,
+    Concentration,
+    Diplomacy,
+    DisableDevice,
+    Haggle,
+    Heal,
+    Hide,
+    Intimidate,
+    Jump,
+    Listen,
+    MoveSilently,
+    OpenLock,
+    Perform,
+    Repair,
+    Search,
+    Spellcraft,
+    Spot,
+    Swim,
+    Tumble,
+    UseMagicDevice,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Skills {
+    /// Stores number of **points** put into each skill at each level, not the
+    /// number of ranks. A missing entry means that no points were spent in
+    /// that skill.
+    skill_table: HashMap<Skill, [u8; 20]>,
+    /// Stores skill tome values. A missing entry means no tomes for that skill
+    /// were eaten.
+    skill_tomes: HashMap<Skill, u8>,
 }
 
 #[derive(Debug)]
@@ -136,6 +177,7 @@ pub enum ParseError {
     UnknownBuildType(String),
     BadLevelupLevel(usize),
     UnknownAbility(String),
+    UnknownSkill(String),
 }
 
 #[repr(u8)]
@@ -219,19 +261,6 @@ impl std::str::FromStr for Class {
     }
 }
 
-impl Default for Stats {
-    fn default() -> Self {
-        Stats {
-            str_pts: 0,
-            dex_pts: 0,
-            con_pts: 0,
-            int_pts: 0,
-            wis_pts: 0,
-            cha_pts: 0,
-        }
-    }
-}
-
 impl std::str::FromStr for BuildType {
     type Err = ();
 
@@ -290,6 +319,59 @@ impl std::ops::IndexMut<Ability> for Stats {
     }
 }
 
+impl Skill {
+    fn from_7_chars(chars: &str) -> Option<Self> {
+        match &chars[..3] {
+            "Bal" => Some(Self::Balance),
+            "Blu" => Some(Self::Bluff),
+            "Con" => Some(Self::Concentration),
+            "Dip" => Some(Self::Diplomacy),
+            "Dis" => Some(Self::DisableDevice),
+            "Hag" => Some(Self::Haggle),
+            "Hea" => Some(Self::Heal),
+            "Hid" => Some(Self::Hide),
+            "Int" => Some(Self::Intimidate),
+            "Jum" => Some(Self::Jump),
+            "Lis" => Some(Self::Listen),
+            "Mov" => Some(Self::MoveSilently),
+            "Ope" => Some(Self::OpenLock),
+            "Per" => Some(Self::Perform),
+            "Rep" => Some(Self::Repair),
+            "Sea" => Some(Self::Search),
+            "Spe" => Some(Self::Spellcraft),
+            "Spo" => Some(Self::Spot),
+            "Swi" => Some(Self::Swim),
+            "Tum" => Some(Self::Tumble),
+            "UMD" => Some(Self::UseMagicDevice),
+            _ => None,
+        }
+    }
+}
+
+impl Skills {
+    /// Returns an array of points spent in the given skill for levels 1
+    /// through 20. A return value of `None` means that no points were spent at
+    /// any level.
+    pub fn points_in_skill(&self, skill: Skill) -> Option<&[u8; 20]> {
+        self.skill_table.get(&skill)
+    }
+
+    /// Returns how many skill points were spent on the given skill at the
+    /// given level.
+    pub fn points_in_skill_at_level(&self, skill: Skill, level: usize) -> u8 {
+        self.skill_table
+            .get(&skill)
+            .map(|points| points[level])
+            .unwrap_or(0)
+    }
+
+    /// Gets the value of the skill tome eaten for the given skill. `0` if no
+    /// tome is eaten.
+    pub fn tome(&self, skill: Skill) -> u8 {
+        *self.skill_tomes.get(&skill).unwrap_or(&0)
+    }
+}
+
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
@@ -320,6 +402,7 @@ impl fmt::Display for ParseError {
             Self::BadLevelupLevel(l) =>
                 write!(f, "Bad ability score increase level: {}", l),
             Self::UnknownAbility(a) => write!(f, "Unknown ability: {}", a),
+            Self::UnknownSkill(s) => write!(f, "Unknown skill: {}", s),
         }
     }
 }
@@ -353,10 +436,21 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
             Regex::new(r"^Level:\s+([0-9]{1,2})\s+([A-Za-z ]+)$").unwrap();
 
         // [Stats] regexps //
-        static ref PREFERRED_RE: Regex=Regex::new(r"^Preferred:\s+([A-Z][A-Za-z]+)$").unwrap();
-        static ref NO_RE:Regex=Regex::new(r"^(Adventurer|Champion|Hero|Legend):\s+No$").unwrap();
-        static ref ABILITY_RE:Regex=Regex::new(r"^(STR|DEX|CON|INT|WIS|CHA):  (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])     ( |[1-9])$").unwrap();
-        static ref LEVELUP_RE:Regex=Regex::new(r"^Levelup:\s+([0-9]{1,2})\s+([A-Z][a-z]+)$").unwrap();
+        static ref PREFERRED_RE: Regex =
+            Regex::new(r"^Preferred:\s+([A-Z][A-Za-z]+)$").unwrap();
+        static ref NO_RE: Regex =
+            Regex::new(r"^(Adventurer|Champion|Hero|Legend):\s+No$").unwrap();
+        static ref ABILITY_RE: Regex =
+            Regex::new(
+                r"^(STR|DEX|CON|INT|WIS|CHA):  (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])     ( |[1-9])$"
+            ).unwrap();
+        static ref LEVELUP_RE: Regex =
+            Regex::new(r"^Levelup:\s+([0-9]{1,2})\s+([A-Z][a-z]+)$").unwrap();
+
+        // [Skills] regexps //
+        static ref SKILL_RE: Regex =
+            Regex::new(r"^([A-Za-z ]{7}):((  [1-9] | [1-9][0-9] |    )+)$")
+                .unwrap();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -376,6 +470,9 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
     let mut legend_stats = Some(Stats::default());
     let mut stat_tomes = Stats::default();
     let mut stat_levelups = [None, None, None, None, None, None, None];
+
+    // [Skills]
+    let mut skills = Skills::default();
     ////////////////////////////////////////////////////////////////
 
     let mut heading = Heading::None;
@@ -388,7 +485,7 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
         }
 
         if let Some(heading_caps) = HEADING_RE.captures(&line) {
-            match heading_caps.get(1).unwrap().as_str() {
+            match &heading_caps[1] {
                 "Overview" => heading = Heading::Overview,
                 "Stats" => heading = Heading::Stats,
                 "Skills" => heading = Heading::Skills,
@@ -405,17 +502,16 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
             Heading::None => return Err(ParseError::DataBeforeFirstHeader),
             Heading::Overview =>
                 if let Some(name_caps) = NAME_RE.captures(&line) {
-                    name = name_caps.get(1).unwrap().as_str().to_owned();
+                    name = name_caps[1].to_owned();
                 } else if let Some(race_caps) = RACE_RE.captures(&line) {
-                    let race_str = race_caps.get(1).unwrap().as_str();
+                    let race_str = &race_caps[1];
                     race = Some(race_str.parse().map_err(|_| {
                         ParseError::UnknownRace(race_str.to_owned())
                     })?);
                 } else if let Some(alignment_caps) =
                     ALIGNMENT_RE.captures(&line)
                 {
-                    let alignment_str =
-                        alignment_caps.get(1).unwrap().as_str();
+                    let alignment_str = &alignment_caps[1];
                     alignment = Some(alignment_str.parse().map_err(|_| {
                         ParseError::UnknownAlignment(alignment_str.to_owned())
                     })?);
@@ -424,17 +520,12 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                 {
                     // Unwrapping the `.parse()` since the regular expression
                     // guarantees the result to be `Ok`
-                    max_levels = max_levels_caps
-                        .get(1)
-                        .unwrap()
-                        .as_str()
-                        .parse()
-                        .unwrap();
+                    max_levels = max_levels_caps[1].parse().unwrap();
                     if max_levels < 1 || max_levels > 30 {
                         return Err(ParseError::InvalidMaxLevel(max_levels));
                     }
                 } else if let Some(class_caps) = CLASS_RE.captures(&line) {
-                    let class_str = class_caps.get(1).unwrap().as_str();
+                    let class_str = &class_caps[1];
                     let class = class_str.parse().map_err(|_| {
                         ParseError::UnknownClass(class_str.to_owned())
                     })?;
@@ -447,8 +538,7 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                 } else if let Some(level_caps) = LEVEL_RE.captures(&line) {
                     // Unwrapping the `.parse()` since the regular expression
                     // guarantees the result to be `Ok`
-                    let level_num: u8 =
-                        level_caps.get(1).unwrap().as_str().parse().unwrap();
+                    let level_num = level_caps[1].parse().unwrap();
                     if level_num < 1 || level_num > 20 {
                         return Err(ParseError::InvalidLevelNum(level_num));
                     }
@@ -456,7 +546,7 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                         return Err(ParseError::LevelsOutOfOrder);
                     }
 
-                    let level_class_str = level_caps.get(2).unwrap().as_str();
+                    let level_class_str = &level_caps[2];
                     let level_class =
                         level_class_str.parse().map_err(|_| {
                             ParseError::UnknownClass(
@@ -475,8 +565,7 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                 },
             Heading::Stats =>
                 if let Some(preferred_caps) = PREFERRED_RE.captures(&line) {
-                    let preferred_str =
-                        preferred_caps.get(1).unwrap().as_str();
+                    let preferred_str = &preferred_caps[1];
                     preferred_build_type =
                         preferred_str.parse().map_err(|_| {
                             ParseError::UnknownBuildType(
@@ -484,7 +573,7 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                             )
                         })?;
                 } else if let Some(no_caps) = NO_RE.captures(&line) {
-                    match no_caps.get(1).unwrap().as_str().as_bytes()[0] {
+                    match no_caps[1].as_bytes()[0] {
                         b'A' => adventurer_stats = None,
                         b'C' => champion_stats = None,
                         b'H' => hero_stats = None,
@@ -493,8 +582,7 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                     }
                 } else if let Some(ability_caps) = ABILITY_RE.captures(&line) {
                     // Unwrapping because the regexp ensures successful parse
-                    let ability =
-                        ability_caps.get(1).unwrap().as_str().parse().unwrap();
+                    let ability = ability_caps[1].parse().unwrap();
 
                     (&mut [
                         adventurer_stats.as_mut(),
@@ -510,22 +598,19 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                             _ => None,
                         })
                         .for_each(|(stats, cap_grp)| {
-                            stats[ability] = ability_caps
-                                .get(cap_grp)
-                                .unwrap()
-                                .as_str()
+                            stats[ability] = ability_caps[cap_grp]
                                 .trim_start()
                                 .parse()
                                 .unwrap_or(0); // CBL uses whitespace to mean 0
                         });
                 } else if let Some(levelup_caps) = LEVELUP_RE.captures(&line) {
                     // Unwrapping because the regexp ensures successful parse
-                    let levelup_level = levelup_caps
-                        .get(1)
-                        .unwrap()
-                        .as_str()
-                        .parse::<usize>()
-                        .unwrap();
+                    let levelup_level =
+                        levelup_caps[1].parse::<usize>().unwrap();
+                    if levelup_level == 0 {
+                        // CBL stores "level 0" ability increases
+                        continue;
+                    }
                     if levelup_level % 4 != 0 {
                         return Err(ParseError::BadLevelupLevel(
                             levelup_level,
@@ -533,14 +618,45 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                     }
                     let levelup_index = levelup_level / 4 - 1;
 
-                    let levelup_ability_str =
-                        levelup_caps.get(2).unwrap().as_str();
+                    let levelup_ability_str = &levelup_caps[2];
                     stat_levelups[levelup_index] =
                         Some(levelup_ability_str.parse().map_err(|_| {
                             ParseError::UnknownAbility(
                                 levelup_ability_str.to_owned(),
                             )
                         })?);
+                },
+            Heading::Skills =>
+                if let Some(skill_caps) = SKILL_RE.captures(&line) {
+                    let skill_str = &skill_caps[1];
+                    let skill =
+                        Skill::from_7_chars(skill_str).ok_or_else(|| {
+                            ParseError::UnknownSkill(skill_str.to_owned())
+                        })?;
+
+                    let points_str = &skill_caps[2];
+                    let mut points_array = [0; 20];
+                    let mut array_is_empty = true;
+                    for (i, bs) in
+                        points_str.as_bytes().chunks_exact(4).enumerate()
+                    {
+                        // We can do this unchecked because the regexp ensures
+                        // correctness
+                        let s = unsafe { std::str::from_utf8_unchecked(bs) };
+
+                        if let Ok(points) = s.trim().parse() {
+                            if i < points_array.len() {
+                                points_array[i] = points;
+                                array_is_empty = false;
+                            } else {
+                                skills.skill_tomes.insert(skill, points);
+                            }
+                        }
+                    }
+
+                    if !array_is_empty {
+                        skills.skill_table.insert(skill, points_array);
+                    }
                 },
             _ => {},
         }
@@ -575,10 +691,12 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
         legend_stats,
         stat_tomes,
         stat_levelups,
+
+        // [Skills]
+        skills,
     })
 }
 
-/*
 mod tests {
     use super::*;
 
@@ -589,14 +707,45 @@ mod tests {
         ).unwrap();
         let mut buf_reader = std::io::BufReader::new(file);
 
+        let mut skills = Skills::default();
+        let mut set_and_forget = [0; 20];
+        set_and_forget[0] = 4;
+        skills.skill_table.insert(Skill::Balance, set_and_forget);
+        skills
+            .skill_table
+            .insert(Skill::Concentration, set_and_forget);
+        let mut dd = [2; 20];
+        dd[0] = 4;
+        skills.skill_table.insert(Skill::DisableDevice, dd);
+        skills.skill_table.insert(
+            Skill::Heal,
+            [4, 0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 2, 2, 2, 1],
+        );
+        skills.skill_table.insert(Skill::Jump, set_and_forget);
+        skills.skill_table.insert(Skill::OpenLock, set_and_forget);
+        skills.skill_table.insert(
+            Skill::Perform,
+            [4, 3, 0, 2, 1, 1, 1, 1, 1, 1, 0, 0, 1, 3, 0, 2, 1, 1, 1, 1],
+        );
+        skills.skill_table.insert(Skill::Search, dd);
+        skills.skill_table.insert(
+            Skill::Spot,
+            [4, 2, 1, 3, 2, 2, 2, 2, 2, 2, 1, 1, 4, 2, 1, 3, 2, 2, 2, 2],
+        );
+        skills.skill_table.insert(Skill::Tumble, set_and_forget);
+        skills.skill_table.insert(
+            Skill::UseMagicDevice,
+            [4, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        );
+
         assert_eq!(
             parse(&mut buf_reader).unwrap(),
             CharacterBuild {
-                name:       "Wartrapper".to_owned(),
-                race:       Race::Drow,
-                alignment:  Alignment::TrueNeutral,
+                name: "Wartrapper".to_owned(),
+                race: Race::Drow,
+                alignment: Alignment::TrueNeutral,
                 max_levels: 20,
-                levels:     vec![
+                levels: vec![
                     Class::Rogue,
                     Class::Bard,
                     Class::Fighter,
@@ -618,8 +767,30 @@ mod tests {
                     Class::Bard,
                     Class::Bard,
                 ],
+                preferred_build_type: BuildType::Adventurer,
+                adventurer_stats: Some(Stats {
+                    str_pts: 10,
+                    dex_pts: 0,
+                    con_pts: 6,
+                    int_pts: 6,
+                    wis_pts: 0,
+                    cha_pts: 6,
+                }),
+                champion_stats: None,
+                hero_stats: None,
+                legend_stats: None,
+                stat_tomes: Stats::default(),
+                stat_levelups: [
+                    Some(Ability::Str),
+                    Some(Ability::Str),
+                    Some(Ability::Str),
+                    Some(Ability::Str),
+                    Some(Ability::Str),
+                    Some(Ability::Str),
+                    Some(Ability::Str),
+                ],
+                skills,
             }
         );
     }
 }
-*/
