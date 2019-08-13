@@ -1,4 +1,5 @@
 #![warn(clippy::all)]
+#![allow(clippy::cognitive_complexity)]
 
 extern crate fxhash;
 #[macro_use]
@@ -31,10 +32,11 @@ pub struct CharacterBuild {
     stat_levelups:        [Option<Ability>; 7],
     // [Skills]
     skills: Skills,
+    // [Feats]
+    feats: Feats,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
 pub enum Race {
     Aasimar,
     AasimarScourge,
@@ -59,7 +61,6 @@ pub enum Race {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
 pub enum Alignment {
     LawfulGood,
     LawfulNeutral,
@@ -70,7 +71,6 @@ pub enum Alignment {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
 pub enum Class {
     Artificer,
     Barbarian,
@@ -89,7 +89,6 @@ pub enum Class {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
 pub enum BuildType {
     Adventurer,
     Champion,
@@ -111,7 +110,6 @@ pub struct Stats {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
 pub enum Ability {
     Str,
     Dex,
@@ -122,7 +120,6 @@ pub enum Ability {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[repr(u8)]
 pub enum Skill {
     Balance,
     Bluff,
@@ -158,6 +155,41 @@ pub struct Skills {
     skill_tomes: HashMap<Skill, u8>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BaseFeatType {
+    Standard,
+    Legend,
+    Class,
+    Race,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SecondaryFeatType {
+    Heroic,
+    Epic,
+    Destiny,
+    Legend,
+    Class(Class),
+    Race(Race),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Feat {
+    secondary_type: SecondaryFeatType,
+    /// **NOTE:** For class feats, this level is the level of the class when
+    /// you get the feat, **not** your character level when you get the feat.
+    level: u8,
+    name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Feats {
+    pub standard_feats: Vec<Feat>,
+    pub legend_feats:   Option<Feat>,
+    pub class_feats:    Vec<Feat>,
+    pub race_feats:     Vec<Feat>,
+}
+
 #[derive(Debug)]
 pub enum ParseError {
     IoError(io::Error),
@@ -178,9 +210,12 @@ pub enum ParseError {
     BadLevelupLevel(usize),
     UnknownAbility(String),
     UnknownSkill(String),
+    UnknownBaseFeatType(String),
+    UnknownSecondaryFeatType(String),
+    InvalidFeatLevel(u8),
+    MultipleLegendFeats,
 }
 
-#[repr(u8)]
 enum Heading {
     None,
     Overview,
@@ -372,6 +407,34 @@ impl Skills {
     }
 }
 
+impl std::str::FromStr for BaseFeatType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Standard" => Ok(Self::Standard),
+            "Legend" => Ok(Self::Legend),
+            "Class" => Ok(Self::Class),
+            "Race" => Ok(Self::Race),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Feat {
+    pub fn new(
+        secondary_type: SecondaryFeatType,
+        level: u8,
+        name: String,
+    ) -> Self {
+        Self {
+            secondary_type,
+            level,
+            name,
+        }
+    }
+}
+
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
@@ -403,6 +466,13 @@ impl fmt::Display for ParseError {
                 write!(f, "Bad ability score increase level: {}", l),
             Self::UnknownAbility(a) => write!(f, "Unknown ability: {}", a),
             Self::UnknownSkill(s) => write!(f, "Unknown skill: {}", s),
+            Self::UnknownBaseFeatType(b) =>
+                write!(f, "Unknown base feat type: {}", b),
+            Self::UnknownSecondaryFeatType(s) =>
+                write!(f, "Unknown secondary feat type: {}", s),
+            Self::InvalidFeatLevel(l) =>
+                write!(f, "Invalid feat level: {}", l),
+            Self::MultipleLegendFeats => f.write_str("Multiple Legend feats"),
         }
     }
 }
@@ -451,6 +521,12 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
         static ref SKILL_RE: Regex =
             Regex::new(r"^([A-Za-z ]{7}):((  [1-9] | [1-9][0-9] |    )+)$")
                 .unwrap();
+
+        // [Feats] regexps //
+        static ref FEAT_RE: Regex =
+            Regex::new(
+                r"^([A-Z][a-z]+):\s+([A-Z][A-Za-z -]*[A-Za-z])\s+([1-9][0-9]?)\s+(.+)$"
+            ).unwrap();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -473,6 +549,10 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
 
     // [Skills]
     let mut skills = Skills::default();
+
+    // [Feats]
+    let mut feats = Feats::default();
+    feats.standard_feats.reserve(8);
     ////////////////////////////////////////////////////////////////
 
     let mut heading = Heading::None;
@@ -658,6 +738,67 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                         skills.skill_table.insert(skill, points_array);
                     }
                 },
+            Heading::Feats =>
+                if let Some(feat_caps) = FEAT_RE.captures(&line) {
+                    let base_type_str = &feat_caps[1];
+                    let base_type = base_type_str.parse().map_err(|_| {
+                        ParseError::UnknownBaseFeatType(
+                            base_type_str.to_owned(),
+                        )
+                    })?;
+
+                    let secondary_type_str = &feat_caps[2];
+                    let secondary_type = match base_type {
+                        BaseFeatType::Standard => match secondary_type_str {
+                            "Heroic" => Some(SecondaryFeatType::Heroic),
+                            "Epic" => Some(SecondaryFeatType::Epic),
+                            "Destiny" => Some(SecondaryFeatType::Destiny),
+                            _ => None,
+                        },
+                        BaseFeatType::Legend =>
+                            if secondary_type_str == "Legend" {
+                                Some(SecondaryFeatType::Legend)
+                            } else {
+                                None
+                            },
+                        BaseFeatType::Class => secondary_type_str
+                            .parse()
+                            .ok()
+                            .map(SecondaryFeatType::Class),
+                        BaseFeatType::Race => secondary_type_str
+                            .parse()
+                            .ok()
+                            .map(SecondaryFeatType::Race),
+                    }
+                    .ok_or_else(|| {
+                        ParseError::UnknownSecondaryFeatType(
+                            secondary_type_str.to_owned(),
+                        )
+                    })?;
+
+                    // Unwrapping parse since regexp ensures success
+                    let feat_level = feat_caps[3].parse().unwrap();
+                    if feat_level < 1 || feat_level > 30 {
+                        return Err(ParseError::InvalidFeatLevel(feat_level));
+                    }
+
+                    let feat_name = feat_caps[4].to_owned();
+
+                    let feat =
+                        Feat::new(secondary_type, feat_level, feat_name);
+                    match base_type {
+                        BaseFeatType::Standard =>
+                            feats.standard_feats.push(feat),
+                        BaseFeatType::Legend =>
+                            if feats.legend_feats.is_none() {
+                                feats.legend_feats = Some(feat);
+                            } else {
+                                return Err(ParseError::MultipleLegendFeats);
+                            },
+                        BaseFeatType::Class => feats.class_feats.push(feat),
+                        BaseFeatType::Race => feats.race_feats.push(feat),
+                    }
+                },
             _ => {},
         }
     }
@@ -694,6 +835,9 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
 
         // [Skills]
         skills,
+
+        // [Feats]
+        feats,
     })
 }
 
@@ -790,6 +934,64 @@ mod tests {
                     Some(Ability::Str),
                 ],
                 skills,
+                feats: Feats {
+                    standard_feats: vec![
+                        Feat::new(
+                            SecondaryFeatType::Heroic,
+                            1,
+                            "Power Attack".to_owned(),
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Heroic,
+                            3,
+                            "Force of Personality".to_owned(),
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Heroic,
+                            6,
+                            "Great Cleave".to_owned(),
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Heroic,
+                            9,
+                            "Extend Spell".to_owned(),
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Heroic,
+                            12,
+                            "Quicken Spell".to_owned(),
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Heroic,
+                            15,
+                            "Two Handed Fighting".to_owned(),
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Heroic,
+                            18,
+                            "Improved Bardic Music".to_owned(),
+                        ),
+                    ],
+                    legend_feats:   None,
+                    class_feats:    vec![
+                        Feat::new(
+                            SecondaryFeatType::Class(Class::Fighter),
+                            1,
+                            "Cleave".to_owned()
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Class(Class::Fighter),
+                            2,
+                            "Improved Critical: Slashing".to_owned()
+                        ),
+                        Feat::new(
+                            SecondaryFeatType::Class(Class::Fighter),
+                            4,
+                            "Improved Two Handed Fighting".to_owned()
+                        )
+                    ],
+                    race_feats:     Vec::new(),
+                },
             }
         );
     }
