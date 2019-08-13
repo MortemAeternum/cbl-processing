@@ -3,7 +3,12 @@ name = "cbl_build2md"
 version = "0.1.0"
 authors = ["MortemAeternum <mortem-aeternum@protonmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Coverts *.build files emitted by EllisDee37’s Character Builder Lite into Markdown"
+homepage = "https://mortem-aeternum.neocities.org/"
+repository = "https://github.com/MortemAeternum/cbl_processing"
+readme = "README.md"
+keywords = ["ddo", "character builder", "markdown", "plaintext"]
+categories = ["Games"]
+license = "AGPL-3.0-or-later"
 
 [dependencies]

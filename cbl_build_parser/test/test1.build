@@ -1,0 +1,78 @@
+[Overview]
+
+Name: New Build
+Race: Aasimar
+Alignment: True Neutral
+MaxLevels: 30
+
+Class: Fighter
+
+
+[Stats]
+
+Preferred: Champion
+
+Adventurer: No
+Hero: No
+Legend: No
+;    Advn  Chmp  Hero  Lgnd  Tome
+;    ----  ----  ----  ----  ----
+STR:  13    16    16    16     4
+DEX:                           5
+CON:  10    10    10    10     5
+INT:   5     6     6     6     8
+WIS:                           4
+CHA:                           4
+;    ----  ----  ----  ----
+;     28    32    32    32   
+
+Levelup: 0	
+Levelup: 4	Intelligence
+Levelup: 8	Intelligence
+Levelup: 12	Intelligence
+Levelup: 16	Wisdom
+Levelup: 20	Intelligence
+Levelup: 24	Intelligence
+Levelup: 28	Intelligence
+
+
+[Feats]
+
+Standard: Heroic 1	Augment Summoning
+Standard: Heroic 3	Exotic Weapon: Shuriken
+Standard: Heroic 6	Improved Shield Bash
+Standard: Heroic 9	Shield Mastery
+Standard: Heroic 12	Great Cleave
+Standard: Heroic 15	Diehard
+Standard: Heroic 18	Dodge
+Standard: Epic 21	Arcane Insight
+Standard: Epic 24	Wellspring of Power
+Standard: Destiny 26	Tactician
+Standard: Epic 27	Epic Reflexes
+Standard: Destiny 28	Mass Frog
+Standard: Destiny 29	Epic Spell Power: Negative
+Standard: Epic 30	Epic Damage Reduction
+
+Legend: Legend 30	Scion of: Ethereal Plane
+
+Race: Aasimar 1	Bond of the Fallen
+
+Class: Fighter 1	Two Handed Fighting
+Class: Fighter 2	Quick Draw
+Class: Fighter 4	Knight's Training
+Class: Fighter 6	Power Attack
+Class: Fighter 8	Cleave
+Class: Fighter 10	Slicing Blow
+Class: Fighter 12	Improved Shield Mastery
+Class: Fighter 14	Heavy Armor Combatant
+Class: Fighter 16	Heavy Armor Training
+Class: Fighter 18	Improved Critical: Slashing
+Class: Fighter 20	Heavy Armor Champion
+
+
+[Enhancements]
+
+Tree: Aasimar
+Type: Race
+ClassLevels: 30
+
