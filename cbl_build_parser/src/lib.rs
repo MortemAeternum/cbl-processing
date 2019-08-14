@@ -290,6 +290,7 @@ pub enum EnhancementTreeName {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Enhancement {
     pub name: String,
+    pub subenhancement: Option<String>,
     /// `rank` is `Some(n)` iff the enhancement is written as
     /// "`name` (Rank `n`)", and is `None` otherwise. It is assumed that
     /// `rank <= 3`, and, more importantly, that `rank >= 1`.
@@ -702,8 +703,16 @@ impl std::str::FromStr for EnhancementTreeName {
 }
 
 impl Enhancement {
-    pub fn new(name: String, rank: Option<NonZeroU8>) -> Self {
-        Self { name, rank }
+    pub fn new(
+        name: String,
+        subenhancement: Option<String>,
+        rank: Option<NonZeroU8>,
+    ) -> Self {
+        Self {
+            name,
+            subenhancement,
+            rank,
+        }
     }
 }
 
@@ -844,7 +853,7 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
         static ref CLASSLEVELS_RE: Regex =
             Regex::new(r"^ClassLevels:\s+[1-9][0-9]?$").unwrap();
         static ref ENHANCEMENT_RE: Regex = Regex::new(
-            r"^Ability:\s+Tier\s+([0-5]):\s+([A-Za-z :'-]+)( \(Rank ([1-3])\))?$"
+            r"^Ability:\s+Tier\s+([0-5]):\s+([A-Za-z '-]+)(: ([A-Za-z '-]+))?( \(Rank ([1-3])\))?$"
         ).unwrap();
     }
 
@@ -1216,14 +1225,16 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                     let tier = enh_caps[1].parse().unwrap();
 
                     let name = enh_caps[2].to_owned();
+                    let subenhancement =
+                        enh_caps.get(4).map(|c| c.as_str().to_owned());
                     let rank =
-                        enh_caps.get(4).and_then(|c| c.as_str().parse().ok());
+                        enh_caps.get(6).and_then(|c| c.as_str().parse().ok());
 
                     enhancements.insert(
                         current_tree
                             .ok_or(ParseError::EnhancementTreeNotDeclared)?,
                         tier,
-                        Enhancement::new(name, rank),
+                        Enhancement::new(name, subenhancement, rank),
                     );
                 },
         }
@@ -1320,158 +1331,172 @@ mod tests {
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             0,
-            Enhancement::new("Skaldic: Constitution".to_owned(), None),
+            Enhancement::new(
+                "Skaldic".to_owned(),
+                Some("Constitution".to_owned()),
+                None,
+            ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             0,
-            Enhancement::new("Weapon Training".to_owned(), None),
+            Enhancement::new("Weapon Training".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             0,
-            Enhancement::new("Song of Heroism".to_owned(), None),
+            Enhancement::new("Song of Heroism".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             0,
-            Enhancement::new("Fighting Spirit".to_owned(), None),
+            Enhancement::new("Fighting Spirit".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             1,
-            Enhancement::new("Poetic Edda".to_owned(), rank3),
+            Enhancement::new("Poetic Edda".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             1,
-            Enhancement::new("Enchant Weapon".to_owned(), None),
+            Enhancement::new("Enchant Weapon".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             1,
-            Enhancement::new("Rough and Ready".to_owned(), rank3),
+            Enhancement::new("Rough and Ready".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             2,
-            Enhancement::new("Words of Encouragement".to_owned(), rank3),
+            Enhancement::new("Words of Encouragement".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             2,
-            Enhancement::new("Arcane Shield Chant".to_owned(), rank3),
+            Enhancement::new("Arcane Shield Chant".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             2,
-            Enhancement::new("Iced Edges".to_owned(), rank3),
+            Enhancement::new("Iced Edges".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             3,
-            Enhancement::new("Ironskin Chant".to_owned(), rank3),
+            Enhancement::new("Ironskin Chant".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             3,
-            Enhancement::new("Obstinance".to_owned(), rank3),
+            Enhancement::new("Obstinance".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             3,
             Enhancement::new(
                 "High Spirits".to_owned(),
+                None,
                 Some(NonZeroU8::new(1).unwrap()),
             ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             4,
-            Enhancement::new("Reckless Chant".to_owned(), rank3),
+            Enhancement::new("Reckless Chant".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             4,
-            Enhancement::new("Armorer".to_owned(), None),
+            Enhancement::new("Armorer".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             5,
             Enhancement::new(
-                "Movement Booster: Expeditious Chant".to_owned(),
+                "Movement Booster".to_owned(),
+                Some("Expeditious Chant".to_owned()),
                 rank3,
             ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             5,
-            Enhancement::new("Chant of Power".to_owned(), rank3),
+            Enhancement::new("Chant of Power".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             5,
-            Enhancement::new("Howl of the North".to_owned(), None),
+            Enhancement::new("Howl of the North".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
             5,
-            Enhancement::new("Kingly Recovery".to_owned(), rank3),
+            Enhancement::new("Kingly Recovery".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             0,
-            Enhancement::new("Toughness".to_owned(), None),
+            Enhancement::new("Toughness".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             0,
-            Enhancement::new("Stalwart Defense".to_owned(), None),
+            Enhancement::new("Stalwart Defense".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             1,
             Enhancement::new(
-                "Improved Stalwart Defense: Durable Defense".to_owned(),
+                "Improved Stalwart Defense".to_owned(),
+                Some("Durable Defense".to_owned()),
                 rank3,
             ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             1,
-            Enhancement::new("Stalwart Defensive Mastery".to_owned(), rank3),
-        );
-        enhancements.insert(
-            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
-            2,
             Enhancement::new(
-                "Improved Stalwart Defense: Resilient Defense".to_owned(),
+                "Stalwart Defensive Mastery".to_owned(),
+                None,
                 rank3,
             ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             2,
-            Enhancement::new("Armor Expertise".to_owned(), rank3),
+            Enhancement::new(
+                "Improved Stalwart Defense".to_owned(),
+                Some("Resilient Defense".to_owned()),
+                rank3,
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            2,
+            Enhancement::new("Armor Expertise".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             3,
             Enhancement::new(
-                "Greater Stalwart Defense: Tenacious Defense".to_owned(),
+                "Greater Stalwart Defense".to_owned(),
+                Some("Tenacious Defense".to_owned()),
                 rank3,
             ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             3,
-            Enhancement::new("Shield Expertise".to_owned(), rank3),
+            Enhancement::new("Shield Expertise".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             4,
             Enhancement::new(
-                "Greater Stalwart Defense: Hardy Defense".to_owned(),
+                "Greater Stalwart Defense".to_owned(),
+                Some("Hardy Defense".to_owned()),
                 rank3,
             ),
         );
@@ -1479,35 +1504,41 @@ mod tests {
             EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
             4,
             Enhancement::new(
-                "Reinforced Defense: Reinforced Armor".to_owned(),
+                "Reinforced Defense".to_owned(),
+                Some("Reinforced Armor".to_owned()),
                 rank3,
             ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Swashbuckler),
             0,
-            Enhancement::new("Confidence".to_owned(), None),
+            Enhancement::new("Confidence".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Swashbuckler),
             1,
-            Enhancement::new("Tavern Shanties".to_owned(), rank3),
+            Enhancement::new("Tavern Shanties".to_owned(), None, rank3),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Spellsinger),
             0,
-            Enhancement::new("Spellsinger".to_owned(), None),
+            Enhancement::new("Spellsinger".to_owned(), None, None),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Spellsinger),
             1,
-            Enhancement::new("Studies: Magical".to_owned(), rank3),
+            Enhancement::new(
+                "Studies".to_owned(),
+                Some("Magical".to_owned()),
+                rank3,
+            ),
         );
         enhancements.insert(
             EnhancementTreeName::Class(ClassEnhancementTree::Spellsinger),
             1,
             Enhancement::new(
                 "Lingering Songs".to_owned(),
+                None,
                 Some(NonZeroU8::new(2).unwrap()),
             ),
         );
