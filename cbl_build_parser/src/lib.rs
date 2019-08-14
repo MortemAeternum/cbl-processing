@@ -34,6 +34,8 @@ pub struct CharacterBuild {
     skills: Skills,
     // [Feats]
     feats: Feats,
+    // [Spells]
+    spells: Spells,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -175,11 +177,11 @@ pub enum SecondaryFeatType {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Feat {
-    secondary_type: SecondaryFeatType,
+    pub secondary_type: SecondaryFeatType,
     /// **NOTE:** For class feats, this level is the level of the class when
     /// you get the feat, **not** your character level when you get the feat.
-    level: u8,
-    name: String,
+    pub level: u8,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -188,6 +190,17 @@ pub struct Feats {
     pub legend_feats:   Option<Feat>,
     pub class_feats:    Vec<Feat>,
     pub race_feats:     Vec<Feat>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Spellbook {
+    pub class:           Class,
+    pub spells_by_level: Vec<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Spells {
+    pub spellbooks: [Option<Spellbook>; 3],
 }
 
 #[derive(Debug)]
@@ -214,6 +227,7 @@ pub enum ParseError {
     UnknownSecondaryFeatType(String),
     InvalidFeatLevel(u8),
     MultipleLegendFeats,
+    TooManySpellbooks,
 }
 
 enum Heading {
@@ -435,6 +449,47 @@ impl Feat {
     }
 }
 
+impl Spells {
+    /// Returns `Err` iff the spells are already full, i.e. there are already
+    /// spellbooks for 3 separate classes and you've tried to insert a spell of
+    /// a 4th class.
+    ///
+    /// This method uses debug-only assertions to check that `1 <= level <= 9`.
+    pub fn insert(
+        &mut self,
+        class: Class,
+        level: usize,
+        name: String,
+    ) -> Result<(), ()> {
+        debug_assert!(1 <= level);
+        debug_assert!(level <= 9);
+
+        self.spellbooks
+            .iter_mut()
+            .find(|msb| {
+                if let Some(sb) = msb {
+                    sb.class == class
+                } else {
+                    true
+                }
+            })
+            .and_then(|msb| {
+                let sb = msb.get_or_insert_with(|| Spellbook {
+                    class,
+                    spells_by_level: Vec::with_capacity(5),
+                });
+
+                if sb.spells_by_level.len() < level {
+                    sb.spells_by_level.resize_with(level, Vec::new);
+                }
+                sb.spells_by_level[level - 1].push(name);
+
+                Some(())
+            })
+            .ok_or(())
+    }
+}
+
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
@@ -473,6 +528,9 @@ impl fmt::Display for ParseError {
             Self::InvalidFeatLevel(l) =>
                 write!(f, "Invalid feat level: {}", l),
             Self::MultipleLegendFeats => f.write_str("Multiple Legend feats"),
+            Self::TooManySpellbooks => f.write_str(
+                "Too many spellbooks (a build can have -- at most -- three)",
+            ),
         }
     }
 }
@@ -527,6 +585,12 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
             Regex::new(
                 r"^([A-Z][a-z]+):\s+([A-Z][A-Za-z -]*[A-Za-z])\s+([1-9][0-9]?)\s+(.+)$"
             ).unwrap();
+
+        // [Spells] regexps //
+        static ref SPELL_RE: Regex =
+            Regex::new(
+                r"^Spell:\s+([A-Z][A-Za-z ]*[A-Za-z])\s+([1-9])\s+(.+)$"
+            ).unwrap();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -553,6 +617,9 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
     // [Feats]
     let mut feats = Feats::default();
     feats.standard_feats.reserve(8);
+
+    // [Spells]
+    let mut spells = Spells::default();
     ////////////////////////////////////////////////////////////////
 
     let mut heading = Heading::None;
@@ -799,6 +866,22 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                         BaseFeatType::Race => feats.race_feats.push(feat),
                     }
                 },
+            Heading::Spells =>
+                if let Some(spell_caps) = SPELL_RE.captures(&line) {
+                    let class_str = &spell_caps[1];
+                    let class: Class = class_str.parse().map_err(|_| {
+                        ParseError::UnknownClass(class_str.to_owned())
+                    })?;
+
+                    // Unwrapping parse since regexp guarantees success
+                    let spell_level = spell_caps[2].parse().unwrap();
+
+                    let spell_name = spell_caps[3].to_owned();
+
+                    spells
+                        .insert(class, spell_level, spell_name)
+                        .map_err(|_| ParseError::TooManySpellbooks)?;
+                },
             _ => {},
         }
     }
@@ -838,6 +921,9 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
 
         // [Feats]
         feats,
+
+        // [Spells]
+        spells,
     })
 }
 
@@ -992,6 +1078,46 @@ mod tests {
                     ],
                     race_feats:     Vec::new(),
                 },
+                spells: Spells {
+                    spellbooks: [
+                        Some(Spellbook {
+                            class:           Class::Bard,
+                            spells_by_level: vec![
+                                vec![
+                                    "Cure Light Wounds".to_owned(),
+                                    "Focusing Chant".to_owned(),
+                                    "Expeditious Retreat".to_owned(),
+                                    "Remove Fear".to_owned(),
+                                ],
+                                vec![
+                                    "Blur".to_owned(),
+                                    "Cure Moderate Wounds".to_owned(),
+                                    "Heroism".to_owned(),
+                                    "Invisibility".to_owned(),
+                                ],
+                                vec![
+                                    "Cure Serious Wounds".to_owned(),
+                                    "Displacement".to_owned(),
+                                    "Haste".to_owned(),
+                                    "Good Hope".to_owned(),
+                                ],
+                                vec![
+                                    "Cure Critical Wounds".to_owned(),
+                                    "Freedom of Movement".to_owned(),
+                                    "Break Enchantment".to_owned(),
+                                    "Dimension Door".to_owned(),
+                                ],
+                                vec![
+                                    "Greater Heroism".to_owned(),
+                                    "Mass Cure Light Wounds".to_owned(),
+                                    "Shadow Walk".to_owned(),
+                                ],
+                            ],
+                        }),
+                        None,
+                        None,
+                    ],
+                }
             }
         );
     }
