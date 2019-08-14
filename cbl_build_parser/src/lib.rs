@@ -12,6 +12,7 @@ use std::{
     self,
     fmt,
     io::{self, prelude::*},
+    num::NonZeroU8,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,9 +37,12 @@ pub struct CharacterBuild {
     feats: Feats,
     // [Spells]
     spells: Spells,
+    // [Enhancements]
+    tier_five:    Option<EnhancementTreeName>,
+    enhancements: Enhancements,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Race {
     Aasimar,
     AasimarScourge,
@@ -194,13 +198,115 @@ pub struct Feats {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Spellbook {
-    pub class:           Class,
-    pub spells_by_level: Vec<Vec<String>>,
+    pub class: Class,
+    /// The first vector is indexed by `level - 1`, where `level` is the level
+    /// of the spell (e.g. `9` for "Wail of the Banshee"), and
+    /// `1 <= level <= 9`.
+    ///
+    /// The vectors that it holds order the spell names (the `Option<String>`s)
+    /// by how they appear in the spellbook (higher indices correspond to spell
+    /// slots further to the right that are obtained at a higher class level).
+    ///
+    /// A spell name that is `None` represents a spell slot that is
+    /// unmemorized, i.e. there is no spell filling the slot. Spell names may
+    /// **not** be empty.
+    pub spells_by_level: Vec<Vec<Option<String>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Spells {
     pub spellbooks: [Option<Spellbook>; 3],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ClassEnhancementTree {
+    Arcanotechnician,
+    BattleEngineer,
+    RenegadeMastermaker,
+    FrenziedBerserker,
+    OccultSlayer,
+    Ravager,
+    Swashbuckler,
+    Spellsinger,
+    Warchanter,
+    DivineDisciple,
+    RadiantServant,
+    Warpriest,
+    NaturesWarrior,
+    NaturesProtector,
+    SeasonsHerald,
+    AngelOfVengeance,
+    BeaconOfHope,
+    WarSoul,
+    Kensei,
+    StalwartDefender,
+    VanguardFighter,
+    HenshinMystic,
+    NinjaSpy,
+    Shintao,
+    KnightOfTheChalice,
+    SacredDefender,
+    VanguardPaladin,
+    ArcaneArcher,
+    DeepwoodStalker,
+    Tempest,
+    Assassin,
+    Mechanic,
+    ThiefAcrobat,
+    AirSavant,
+    EarthSavant,
+    EldritchKnightSorcerer,
+    FireSavant,
+    WaterSavant,
+    EnlightenedSpirit,
+    SoulEater,
+    TaintedScholar,
+    Archmage,
+    EldritchKnightWizard,
+    PaleMaster,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum GlobalEnhancementTree {
+    HarperAgent,
+    Falconry,
+    VistaniKnifeFighter,
+    Inquisitive,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RaceClassEnhancementTree {
+    ElfArcaneArcher,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EnhancementTreeName {
+    Class(ClassEnhancementTree),
+    Race(Race),
+    Global(GlobalEnhancementTree),
+    RaceClass(RaceClassEnhancementTree),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Enhancement {
+    pub name: String,
+    /// `rank` is `Some(n)` iff the enhancement is written as
+    /// "`name` (Rank `n`)", and is `None` otherwise. It is assumed that
+    /// `rank <= 3`, and, more importantly, that `rank >= 1`.
+    pub rank: Option<NonZeroU8>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EnhancementTree {
+    /// Indexed by tier. Tier 0 represents "core" enhancements. The
+    /// `Vec<Enhancement>`s are in no particular order other than whatever
+    /// order it was written in.
+    pub tiers: [Vec<Enhancement>; 6],
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Enhancements {
+    pub trees: HashMap<EnhancementTreeName, EnhancementTree>,
 }
 
 #[derive(Debug)]
@@ -228,6 +334,9 @@ pub enum ParseError {
     InvalidFeatLevel(u8),
     MultipleLegendFeats,
     TooManySpellbooks,
+    UnknownEnhancementTree(String),
+    WrongEnhancementTreeType,
+    EnhancementTreeNotDeclared,
 }
 
 enum Heading {
@@ -454,15 +563,17 @@ impl Spells {
     /// spellbooks for 3 separate classes and you've tried to insert a spell of
     /// a 4th class.
     ///
-    /// This method uses debug-only assertions to check that `1 <= level <= 9`.
+    /// This method uses debug-only assertions to check that `1 <= level <= 9`
+    /// and that `name` is **not** `Some(s)` where `s.is_empty()`.
     pub fn insert(
         &mut self,
         class: Class,
         level: usize,
-        name: String,
+        name: Option<String>,
     ) -> Result<(), ()> {
         debug_assert!(1 <= level);
         debug_assert!(level <= 9);
+        debug_assert!(name.as_ref().map_or(true, |s| !s.is_empty()));
 
         self.spellbooks
             .iter_mut()
@@ -487,6 +598,132 @@ impl Spells {
                 Some(())
             })
             .ok_or(())
+    }
+}
+
+impl std::str::FromStr for EnhancementTreeName {
+    type Err = ();
+
+    /// **NOTE:** if `s == "Vanguard"`, then this function returns
+    /// `Ok(Self::Class(ClassEnhancementTree::VanguardFighter))`. The caller
+    /// must disambiguate on their own if this is the value that they receive.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Arcanotechnician" =>
+                Ok(Self::Class(ClassEnhancementTree::Arcanotechnician)),
+            "Battle Engineer" =>
+                Ok(Self::Class(ClassEnhancementTree::BattleEngineer)),
+            "Renegade Mastermaker" =>
+                Ok(Self::Class(ClassEnhancementTree::RenegadeMastermaker)),
+            "Frenzied Berserker" =>
+                Ok(Self::Class(ClassEnhancementTree::FrenziedBerserker)),
+            "Occult Slayer" =>
+                Ok(Self::Class(ClassEnhancementTree::OccultSlayer)),
+            "Ravager" => Ok(Self::Class(ClassEnhancementTree::Ravager)),
+            "Swashbuckler" =>
+                Ok(Self::Class(ClassEnhancementTree::Swashbuckler)),
+            "Spellsinger" =>
+                Ok(Self::Class(ClassEnhancementTree::Spellsinger)),
+            "Warchanter" => Ok(Self::Class(ClassEnhancementTree::Warchanter)),
+            "Divine Disciple" =>
+                Ok(Self::Class(ClassEnhancementTree::DivineDisciple)),
+            "Radiant Servant" =>
+                Ok(Self::Class(ClassEnhancementTree::RadiantServant)),
+            "Warpriest" => Ok(Self::Class(ClassEnhancementTree::Warpriest)),
+            "Nature's Warrior" =>
+                Ok(Self::Class(ClassEnhancementTree::NaturesWarrior)),
+            "Nature's Protector" =>
+                Ok(Self::Class(ClassEnhancementTree::NaturesProtector)),
+            "Season's Herald" =>
+                Ok(Self::Class(ClassEnhancementTree::SeasonsHerald)),
+            "Angel of Vengeance" =>
+                Ok(Self::Class(ClassEnhancementTree::AngelOfVengeance)),
+            "Beacon of Hope" =>
+                Ok(Self::Class(ClassEnhancementTree::BeaconOfHope)),
+            "War Soul" => Ok(Self::Class(ClassEnhancementTree::WarSoul)),
+            "Kensei" => Ok(Self::Class(ClassEnhancementTree::Kensei)),
+            "Stalwart Defender" =>
+                Ok(Self::Class(ClassEnhancementTree::StalwartDefender)),
+            "Vanguard" | "Vanguard (Fighter)" =>
+                Ok(Self::Class(ClassEnhancementTree::VanguardFighter)),
+            "Henshin Mystic" =>
+                Ok(Self::Class(ClassEnhancementTree::HenshinMystic)),
+            "Ninja Spy" => Ok(Self::Class(ClassEnhancementTree::NinjaSpy)),
+            "Shintao" => Ok(Self::Class(ClassEnhancementTree::Shintao)),
+            "Knight of the Chalice" =>
+                Ok(Self::Class(ClassEnhancementTree::KnightOfTheChalice)),
+            "Sacred Defender" =>
+                Ok(Self::Class(ClassEnhancementTree::SacredDefender)),
+            "Vanguard (Paladin)" =>
+                Ok(Self::Class(ClassEnhancementTree::VanguardPaladin)),
+            "Arcane Archer" =>
+                Ok(Self::Class(ClassEnhancementTree::ArcaneArcher)),
+            "Deepwood Stalker" =>
+                Ok(Self::Class(ClassEnhancementTree::DeepwoodStalker)),
+            "Tempest" => Ok(Self::Class(ClassEnhancementTree::Tempest)),
+            "Assassin" => Ok(Self::Class(ClassEnhancementTree::Assassin)),
+            "Mechanic" => Ok(Self::Class(ClassEnhancementTree::Mechanic)),
+            "Thief-Acrobat" =>
+                Ok(Self::Class(ClassEnhancementTree::ThiefAcrobat)),
+            "Air Savant" => Ok(Self::Class(ClassEnhancementTree::AirSavant)),
+            "Earth Savant" =>
+                Ok(Self::Class(ClassEnhancementTree::EarthSavant)),
+            "Eldritch Knight (Sorcerer)" =>
+                Ok(Self::Class(ClassEnhancementTree::EldritchKnightSorcerer)),
+            "Fire Savant" => Ok(Self::Class(ClassEnhancementTree::FireSavant)),
+            "Water Savant" =>
+                Ok(Self::Class(ClassEnhancementTree::WaterSavant)),
+            "Enlightened Spirit" =>
+                Ok(Self::Class(ClassEnhancementTree::EnlightenedSpirit)),
+            "Soul Eater" => Ok(Self::Class(ClassEnhancementTree::SoulEater)),
+            "Tainted Scholar" =>
+                Ok(Self::Class(ClassEnhancementTree::TaintedScholar)),
+            "Archmage" => Ok(Self::Class(ClassEnhancementTree::Archmage)),
+            "Eldritch Knight (Wizard)" =>
+                Ok(Self::Class(ClassEnhancementTree::EldritchKnightWizard)),
+            "Pale Master" => Ok(Self::Class(ClassEnhancementTree::PaleMaster)),
+            "Harper Agent" =>
+                Ok(Self::Global(GlobalEnhancementTree::HarperAgent)),
+            "Falconry" => Ok(Self::Global(GlobalEnhancementTree::Falconry)),
+            "Vistani Knife Fighter" =>
+                Ok(Self::Global(GlobalEnhancementTree::VistaniKnifeFighter)),
+            "Inquisitive" =>
+                Ok(Self::Global(GlobalEnhancementTree::Inquisitive)),
+            "Elf-Arcane Archer" =>
+                Ok(Self::RaceClass(RaceClassEnhancementTree::ElfArcaneArcher)),
+            _ =>
+                if let Ok(r) = s.parse() {
+                    Ok(Self::Race(r))
+                } else {
+                    Err(())
+                },
+        }
+    }
+}
+
+impl Enhancement {
+    pub fn new(name: String, rank: Option<NonZeroU8>) -> Self {
+        Self { name, rank }
+    }
+}
+
+impl Enhancements {
+    /// `tier <= 5`, checked by debug-only assertion.
+    pub fn insert(
+        &mut self,
+        tree_name: EnhancementTreeName,
+        tier: usize,
+        enhancement: Enhancement,
+    ) {
+        debug_assert!(tier <= 5);
+
+        if let Some(et) = self.trees.get_mut(&tree_name) {
+            et.tiers[tier].push(enhancement);
+        } else {
+            let mut et = EnhancementTree::default();
+            et.tiers[tier].push(enhancement);
+            self.trees.insert(tree_name, et);
+        }
     }
 }
 
@@ -531,6 +768,12 @@ impl fmt::Display for ParseError {
             Self::TooManySpellbooks => f.write_str(
                 "Too many spellbooks (a build can have -- at most -- three)",
             ),
+            Self::UnknownEnhancementTree(e) =>
+                write!(f, "Unknown enhancement tree: {}", e),
+            Self::WrongEnhancementTreeType =>
+                f.write_str("Wrong enhancement tree type"),
+            Self::EnhancementTreeNotDeclared =>
+                f.write_str("Enhancement tree not declared"),
         }
     }
 }
@@ -568,10 +811,9 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
             Regex::new(r"^Preferred:\s+([A-Z][A-Za-z]+)$").unwrap();
         static ref NO_RE: Regex =
             Regex::new(r"^(Adventurer|Champion|Hero|Legend):\s+No$").unwrap();
-        static ref ABILITY_RE: Regex =
-            Regex::new(
-                r"^(STR|DEX|CON|INT|WIS|CHA):  (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])     ( |[1-9])$"
-            ).unwrap();
+        static ref ABILITY_RE: Regex = Regex::new(
+            r"^(STR|DEX|CON|INT|WIS|CHA):  (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])    (  | [1-9]|[1-9][0-9])     ( |[1-9])$"
+        ).unwrap();
         static ref LEVELUP_RE: Regex =
             Regex::new(r"^Levelup:\s+([0-9]{1,2})\s+([A-Z][a-z]+)$").unwrap();
 
@@ -581,16 +823,29 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                 .unwrap();
 
         // [Feats] regexps //
-        static ref FEAT_RE: Regex =
-            Regex::new(
-                r"^([A-Z][a-z]+):\s+([A-Z][A-Za-z -]*[A-Za-z])\s+([1-9][0-9]?)\s+(.+)$"
-            ).unwrap();
+        static ref FEAT_RE: Regex = Regex::new(
+            r"^([A-Z][a-z]+):\s+([A-Z][A-Za-z -]*[A-Za-z])\s+([1-9][0-9]?)\s+(.+)$"
+        ).unwrap();
 
         // [Spells] regexps //
-        static ref SPELL_RE: Regex =
-            Regex::new(
-                r"^Spell:\s+([A-Z][A-Za-z ]*[A-Za-z])\s+([1-9])\s+(.+)$"
-            ).unwrap();
+        static ref SPELL_RE: Regex = Regex::new(
+            r"^Spell:\s+([A-Z][A-Za-z ]*[A-Za-z])\s+([1-9])\s+(.*)$"
+        ).unwrap();
+
+        // [Enhancements] regexps //
+        static ref TIER5_RE: Regex = Regex::new(r"^Tier5:\s+([A-Za-z '-]+)$")
+            .unwrap();
+        static ref TREE_RE: Regex = Regex::new(r"^Tree:\s+([A-Za-z '-]+)$")
+            .unwrap();
+        static ref TREE_TYPE_RE: Regex =
+            Regex::new(r"^Type:\s+(Race|Class|Global|RaceClass)$").unwrap();
+        static ref SOURCE_RE: Regex = Regex::new(r"^Source:\s+([A-Za-z -]+)$")
+            .unwrap();
+        static ref CLASSLEVELS_RE: Regex =
+            Regex::new(r"^ClassLevels:\s+[1-9][0-9]?$").unwrap();
+        static ref ENHANCEMENT_RE: Regex = Regex::new(
+            r"^Ability:\s+Tier\s+([0-5]):\s+([A-Za-z :'-]+)( \(Rank ([1-3])\))?$"
+        ).unwrap();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -620,6 +875,11 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
 
     // [Spells]
     let mut spells = Spells::default();
+
+    // [Enhancements]
+    let mut tier_five = None;
+    let mut enhancements = Enhancements::default();
+    let mut current_tree: Option<EnhancementTreeName> = None;
     ////////////////////////////////////////////////////////////////
 
     let mut heading = Heading::None;
@@ -876,13 +1136,96 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
                     // Unwrapping parse since regexp guarantees success
                     let spell_level = spell_caps[2].parse().unwrap();
 
-                    let spell_name = spell_caps[3].to_owned();
+                    let spell_name = &spell_caps[3];
+                    let spell_name = if spell_name.is_empty() {
+                        None
+                    } else {
+                        Some(spell_name.to_owned())
+                    };
 
                     spells
                         .insert(class, spell_level, spell_name)
                         .map_err(|_| ParseError::TooManySpellbooks)?;
                 },
-            _ => {},
+            Heading::Enhancements =>
+                if let Some(tier5_caps) = TIER5_RE.captures(&line) {
+                    let tier5_str = &tier5_caps[1];
+                    tier_five = Some(tier5_str.parse().map_err(|_| {
+                        ParseError::UnknownEnhancementTree(
+                            tier5_str.to_owned(),
+                        )
+                    })?);
+                } else if let Some(tree_caps) = TREE_RE.captures(&line) {
+                    let tree_str = &tree_caps[1];
+                    current_tree = Some(tree_str.parse().map_err(|_| {
+                        ParseError::UnknownEnhancementTree(tree_str.to_owned())
+                    })?);
+                } else if let Some(tree_type_caps) =
+                    TREE_TYPE_RE.captures(&line)
+                {
+                    match &tree_type_caps[1] {
+                        "Race" =>
+                            if let Some(EnhancementTreeName::Race(_)) =
+                                current_tree
+                            {
+                                Ok(())
+                            } else {
+                                Err(ParseError::WrongEnhancementTreeType)
+                            },
+                        "Class" =>
+                            if let Some(EnhancementTreeName::Class(_)) =
+                                current_tree
+                            {
+                                Ok(())
+                            } else {
+                                Err(ParseError::WrongEnhancementTreeType)
+                            },
+                        "Global" =>
+                            if let Some(EnhancementTreeName::Global(_)) =
+                                current_tree
+                            {
+                                Ok(())
+                            } else {
+                                Err(ParseError::WrongEnhancementTreeType)
+                            },
+                        "RaceClass" =>
+                            if let Some(EnhancementTreeName::RaceClass(_)) =
+                                current_tree
+                            {
+                                Ok(())
+                            } else {
+                                Err(ParseError::WrongEnhancementTreeType)
+                            },
+                        _ => unreachable!(), // Unreachable due to regexp
+                    }?;
+                } else if let Some(source_caps) = SOURCE_RE.captures(&line) {
+                    if &source_caps[1] == "Paladin"
+                        && current_tree
+                            == Some(EnhancementTreeName::Class(
+                                ClassEnhancementTree::VanguardFighter,
+                            ))
+                    {
+                        current_tree = Some(EnhancementTreeName::Class(
+                            ClassEnhancementTree::VanguardPaladin,
+                        ));
+                    }
+                } else if CLASSLEVELS_RE.is_match(&line) {
+                    /* Redundant info that I don't want to bother handling */
+                } else if let Some(enh_caps) = ENHANCEMENT_RE.captures(&line) {
+                    // Unwrapping this parse, as the regexp guarantees success
+                    let tier = enh_caps[1].parse().unwrap();
+
+                    let name = enh_caps[2].to_owned();
+                    let rank =
+                        enh_caps.get(4).and_then(|c| c.as_str().parse().ok());
+
+                    enhancements.insert(
+                        current_tree
+                            .ok_or(ParseError::EnhancementTreeNotDeclared)?,
+                        tier,
+                        Enhancement::new(name, rank),
+                    );
+                },
         }
     }
 
@@ -924,6 +1267,10 @@ pub fn parse<R: BufRead>(input: &mut R) -> Result<CharacterBuild, ParseError> {
 
         // [Spells]
         spells,
+
+        // [Enhancements]
+        tier_five,
+        enhancements,
     })
 }
 
@@ -968,157 +1315,359 @@ mod tests {
             [4, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         );
 
-        assert_eq!(
-            parse(&mut buf_reader).unwrap(),
-            CharacterBuild {
-                name: "Wartrapper".to_owned(),
-                race: Race::Drow,
-                alignment: Alignment::TrueNeutral,
-                max_levels: 20,
-                levels: vec![
-                    Class::Rogue,
-                    Class::Bard,
-                    Class::Fighter,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Fighter,
-                    Class::Fighter,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Fighter,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                    Class::Bard,
-                ],
-                preferred_build_type: BuildType::Adventurer,
-                adventurer_stats: Some(Stats {
-                    str_pts: 10,
-                    dex_pts: 0,
-                    con_pts: 6,
-                    int_pts: 6,
-                    wis_pts: 0,
-                    cha_pts: 6,
-                }),
-                champion_stats: None,
-                hero_stats: None,
-                legend_stats: None,
-                stat_tomes: Stats::default(),
-                stat_levelups: [
-                    Some(Ability::Str),
-                    Some(Ability::Str),
-                    Some(Ability::Str),
-                    Some(Ability::Str),
-                    Some(Ability::Str),
-                    Some(Ability::Str),
-                    Some(Ability::Str),
-                ],
-                skills,
-                feats: Feats {
-                    standard_feats: vec![
-                        Feat::new(
-                            SecondaryFeatType::Heroic,
-                            1,
-                            "Power Attack".to_owned(),
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Heroic,
-                            3,
-                            "Force of Personality".to_owned(),
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Heroic,
-                            6,
-                            "Great Cleave".to_owned(),
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Heroic,
-                            9,
-                            "Extend Spell".to_owned(),
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Heroic,
-                            12,
-                            "Quicken Spell".to_owned(),
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Heroic,
-                            15,
-                            "Two Handed Fighting".to_owned(),
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Heroic,
-                            18,
-                            "Improved Bardic Music".to_owned(),
-                        ),
-                    ],
-                    legend_feats:   None,
-                    class_feats:    vec![
-                        Feat::new(
-                            SecondaryFeatType::Class(Class::Fighter),
-                            1,
-                            "Cleave".to_owned()
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Class(Class::Fighter),
-                            2,
-                            "Improved Critical: Slashing".to_owned()
-                        ),
-                        Feat::new(
-                            SecondaryFeatType::Class(Class::Fighter),
-                            4,
-                            "Improved Two Handed Fighting".to_owned()
-                        )
-                    ],
-                    race_feats:     Vec::new(),
-                },
-                spells: Spells {
-                    spellbooks: [
-                        Some(Spellbook {
-                            class:           Class::Bard,
-                            spells_by_level: vec![
-                                vec![
-                                    "Cure Light Wounds".to_owned(),
-                                    "Focusing Chant".to_owned(),
-                                    "Expeditious Retreat".to_owned(),
-                                    "Remove Fear".to_owned(),
-                                ],
-                                vec![
-                                    "Blur".to_owned(),
-                                    "Cure Moderate Wounds".to_owned(),
-                                    "Heroism".to_owned(),
-                                    "Invisibility".to_owned(),
-                                ],
-                                vec![
-                                    "Cure Serious Wounds".to_owned(),
-                                    "Displacement".to_owned(),
-                                    "Haste".to_owned(),
-                                    "Good Hope".to_owned(),
-                                ],
-                                vec![
-                                    "Cure Critical Wounds".to_owned(),
-                                    "Freedom of Movement".to_owned(),
-                                    "Break Enchantment".to_owned(),
-                                    "Dimension Door".to_owned(),
-                                ],
-                                vec![
-                                    "Greater Heroism".to_owned(),
-                                    "Mass Cure Light Wounds".to_owned(),
-                                    "Shadow Walk".to_owned(),
-                                ],
-                            ],
-                        }),
-                        None,
-                        None,
-                    ],
-                }
-            }
+        let mut enhancements = Enhancements::default();
+        let rank3 = Some(NonZeroU8::new(3).unwrap());
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            0,
+            Enhancement::new("Skaldic: Constitution".to_owned(), None),
         );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            0,
+            Enhancement::new("Weapon Training".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            0,
+            Enhancement::new("Song of Heroism".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            0,
+            Enhancement::new("Fighting Spirit".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            1,
+            Enhancement::new("Poetic Edda".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            1,
+            Enhancement::new("Enchant Weapon".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            1,
+            Enhancement::new("Rough and Ready".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            2,
+            Enhancement::new("Words of Encouragement".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            2,
+            Enhancement::new("Arcane Shield Chant".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            2,
+            Enhancement::new("Iced Edges".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            3,
+            Enhancement::new("Ironskin Chant".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            3,
+            Enhancement::new("Obstinance".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            3,
+            Enhancement::new(
+                "High Spirits".to_owned(),
+                Some(NonZeroU8::new(1).unwrap()),
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            4,
+            Enhancement::new("Reckless Chant".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            4,
+            Enhancement::new("Armorer".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            5,
+            Enhancement::new(
+                "Movement Booster: Expeditious Chant".to_owned(),
+                rank3,
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            5,
+            Enhancement::new("Chant of Power".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            5,
+            Enhancement::new("Howl of the North".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Warchanter),
+            5,
+            Enhancement::new("Kingly Recovery".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            0,
+            Enhancement::new("Toughness".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            0,
+            Enhancement::new("Stalwart Defense".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            1,
+            Enhancement::new(
+                "Improved Stalwart Defense: Durable Defense".to_owned(),
+                rank3,
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            1,
+            Enhancement::new("Stalwart Defensive Mastery".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            2,
+            Enhancement::new(
+                "Improved Stalwart Defense: Resilient Defense".to_owned(),
+                rank3,
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            2,
+            Enhancement::new("Armor Expertise".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            3,
+            Enhancement::new(
+                "Greater Stalwart Defense: Tenacious Defense".to_owned(),
+                rank3,
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            3,
+            Enhancement::new("Shield Expertise".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            4,
+            Enhancement::new(
+                "Greater Stalwart Defense: Hardy Defense".to_owned(),
+                rank3,
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::StalwartDefender),
+            4,
+            Enhancement::new(
+                "Reinforced Defense: Reinforced Armor".to_owned(),
+                rank3,
+            ),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Swashbuckler),
+            0,
+            Enhancement::new("Confidence".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Swashbuckler),
+            1,
+            Enhancement::new("Tavern Shanties".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Spellsinger),
+            0,
+            Enhancement::new("Spellsinger".to_owned(), None),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Spellsinger),
+            1,
+            Enhancement::new("Studies: Magical".to_owned(), rank3),
+        );
+        enhancements.insert(
+            EnhancementTreeName::Class(ClassEnhancementTree::Spellsinger),
+            1,
+            Enhancement::new(
+                "Lingering Songs".to_owned(),
+                Some(NonZeroU8::new(2).unwrap()),
+            ),
+        );
+
+        let c = CharacterBuild {
+            name: "Wartrapper".to_owned(),
+            race: Race::Drow,
+            alignment: Alignment::TrueNeutral,
+            max_levels: 20,
+            levels: vec![
+                Class::Rogue,
+                Class::Bard,
+                Class::Fighter,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+                Class::Fighter,
+                Class::Fighter,
+                Class::Bard,
+                Class::Bard,
+                Class::Fighter,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+                Class::Bard,
+            ],
+            preferred_build_type: BuildType::Adventurer,
+            adventurer_stats: Some(Stats {
+                str_pts: 10,
+                dex_pts: 0,
+                con_pts: 6,
+                int_pts: 6,
+                wis_pts: 0,
+                cha_pts: 6,
+            }),
+            champion_stats: None,
+            hero_stats: None,
+            legend_stats: None,
+            stat_tomes: Stats::default(),
+            stat_levelups: [
+                Some(Ability::Str),
+                Some(Ability::Str),
+                Some(Ability::Str),
+                Some(Ability::Str),
+                Some(Ability::Str),
+                Some(Ability::Str),
+                Some(Ability::Str),
+            ],
+            skills,
+            feats: Feats {
+                standard_feats: vec![
+                    Feat::new(
+                        SecondaryFeatType::Heroic,
+                        1,
+                        "Power Attack".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Heroic,
+                        3,
+                        "Force of Personality".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Heroic,
+                        6,
+                        "Great Cleave".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Heroic,
+                        9,
+                        "Extend Spell".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Heroic,
+                        12,
+                        "Quicken Spell".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Heroic,
+                        15,
+                        "Two Handed Fighting".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Heroic,
+                        18,
+                        "Improved Bardic Music".to_owned(),
+                    ),
+                ],
+                legend_feats:   None,
+                class_feats:    vec![
+                    Feat::new(
+                        SecondaryFeatType::Class(Class::Fighter),
+                        1,
+                        "Cleave".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Class(Class::Fighter),
+                        2,
+                        "Improved Critical: Slashing".to_owned(),
+                    ),
+                    Feat::new(
+                        SecondaryFeatType::Class(Class::Fighter),
+                        4,
+                        "Improved Two Handed Fighting".to_owned(),
+                    ),
+                ],
+                race_feats:     Vec::new(),
+            },
+            spells: Spells {
+                spellbooks: [
+                    Some(Spellbook {
+                        class:           Class::Bard,
+                        spells_by_level: vec![
+                            vec![
+                                Some("Cure Light Wounds".to_owned()),
+                                Some("Focusing Chant".to_owned()),
+                                Some("Expeditious Retreat".to_owned()),
+                                Some("Remove Fear".to_owned()),
+                            ],
+                            vec![
+                                Some("Blur".to_owned()),
+                                Some("Cure Moderate Wounds".to_owned()),
+                                Some("Heroism".to_owned()),
+                                Some("Invisibility".to_owned()),
+                            ],
+                            vec![
+                                Some("Cure Serious Wounds".to_owned()),
+                                Some("Displacement".to_owned()),
+                                Some("Haste".to_owned()),
+                                Some("Good Hope".to_owned()),
+                            ],
+                            vec![
+                                Some("Cure Critical Wounds".to_owned()),
+                                Some("Freedom of Movement".to_owned()),
+                                Some("Break Enchantment".to_owned()),
+                                Some("Dimension Door".to_owned()),
+                            ],
+                            vec![
+                                Some("Greater Heroism".to_owned()),
+                                Some("Mass Cure Light Wounds".to_owned()),
+                                Some("Shadow Walk".to_owned()),
+                            ],
+                        ],
+                    }),
+                    None,
+                    None,
+                ],
+            },
+            tier_five: Some(EnhancementTreeName::Class(
+                ClassEnhancementTree::Warchanter,
+            )),
+            enhancements,
+        };
+
+        let parsed = parse(&mut buf_reader).unwrap();
+
+        assert_eq!(parsed, c);
     }
 }

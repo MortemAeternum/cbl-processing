@@ -1,0 +1,182 @@
+[Overview]
+
+Name: test3
+Race: Elf
+Alignment: True Neutral
+MaxLevels: 20
+
+Class: Bard
+Class: Wizard
+
+Level: 1	Bard
+Level: 2	Bard
+Level: 3	Bard
+Level: 4	Wizard
+Level: 5	Bard
+Level: 6	Wizard
+Level: 7	Bard
+Level: 8	Wizard
+Level: 9	Bard
+Level: 10	Bard
+Level: 11	Bard
+Level: 12	Bard
+Level: 13	Wizard
+Level: 14	Bard
+Level: 15	Bard
+Level: 16	Bard
+Level: 17	Bard
+Level: 18	Bard
+Level: 19	Bard
+Level: 20	Bard
+
+
+[Stats]
+
+Preferred: Adventurer
+
+;    Advn  Chmp  Hero  Lgnd  Tome
+;    ----  ----  ----  ----  ----
+STR:                            
+DEX:   4     4     4     6      
+CON:  10    10    10    10      
+INT:  10    10    10    10      
+WIS:                            
+CHA:   4     8    10    10      
+;    ----  ----  ----  ----
+;     28    32    34    36   
+
+Levelup: 0	Charisma
+Levelup: 4	Charisma
+Levelup: 8	Charisma
+Levelup: 12	Charisma
+Levelup: 16	Charisma
+Levelup: 20	Charisma
+Levelup: 24	Charisma
+Levelup: 28	Charisma
+
+
+[Skills]
+
+;         1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  Tome
+;        ------------------------------------------------------------------------------------
+Balance:                                                                                    
+Bluff  :                                                                                    
+Concent:  4   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1     
+Diplo  :                                                                                    
+Disable:                                                                                    
+Haggle :                                                                                    
+Heal   :                                                                                    
+Hide   :                                                                                    
+Intim  :                                                                                    
+Jump   :                                                                                    
+Listen :                                                                                    
+Move Si:                                                                                    
+Open Lo:                                                                                    
+Perform:                                                                                    
+Repair :                                                                                    
+Search :                                                                                    
+Spellcr:  4   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1     
+Spot   :                                                                                    
+Swim   :                                                                                    
+Tumble :                                                                                    
+UMD    :  4   1   1   2   1   2   1   2   1   1   1   1   2   1   1   1   1   1   1   1     
+
+
+[Spells]
+
+Spell: Bard 1	Charm Person
+Spell: Bard 1	Expeditious Retreat
+Spell: Bard 1	Focusing Chant
+Spell: Bard 1	
+Spell: Bard 1	
+
+Spell: Bard 2	Cure Moderate Wounds
+Spell: Bard 2	Fox's Cunning
+Spell: Bard 2	
+Spell: Bard 2	Hypnotic Pattern
+
+Spell: Bard 3	
+Spell: Bard 3	
+Spell: Bard 3	
+Spell: Bard 3	
+
+Spell: Bard 4	
+Spell: Bard 4	
+Spell: Bard 4	
+Spell: Bard 4	
+
+Spell: Bard 5	
+Spell: Bard 5	
+Spell: Bard 5	
+Spell: Bard 5	
+
+Spell: Bard 6	
+Spell: Bard 6	
+
+Spell: Wizard 1	
+Spell: Wizard 1	
+Spell: Wizard 1	
+Spell: Wizard 1	
+
+Spell: Wizard 2	
+Spell: Wizard 2	
+Spell: Wizard 2	
+
+
+[Enhancements]
+
+Tier5: Swashbuckler
+
+Tree: Elf
+Type: Race
+ClassLevels: 20
+Ability: Tier 0: Elven Accuracy
+Ability: Tier 0: Elven Dexterity
+Ability: Tier 1: Keen Senses (Rank 3)
+Ability: Tier 2: Nothing Is Hidden (Rank 3)
+Ability: Tier 2: Arcanum (Rank 3)
+Ability: Tier 3: Arcane Archer
+
+Tree: Harper Agent
+Type: Global
+ClassLevels: 20
+Ability: Tier 0: Agent of Good I
+Ability: Tier 1: Harper Enchantment
+Ability: Tier 1: Weathered Traveler (Rank 3)
+
+Tree: Swashbuckler
+Type: Class
+Source: Bard
+ClassLevels: 16
+Ability: Tier 0: Confidence
+Ability: Tier 0: Swashbuckling
+Ability: Tier 0: Uncanny Dodge
+Ability: Tier 0: Panache
+Ability: Tier 1: Tavern Shanties (Rank 3)
+Ability: Tier 1: Limber Up (Rank 3)
+Ability: Tier 2: Deflect Arrows
+Ability: Tier 2: Sword Dance (Rank 3)
+Ability: Tier 3: Resonant Arms (Rank 3)
+Ability: Tier 4: Wind at my Back (Rank 3)
+Ability: Tier 5: Exploit Weakness
+
+Tree: Elf-Arcane Archer
+Type: RaceClass
+ClassLevels: 20
+Ability: Tier 0: Arcane Archer
+Ability: Tier 0: Morphic Arrows
+Ability: Tier 0: Metalline Arrows
+Ability: Tier 1: Conjure Arrows
+Ability: Tier 1: Energy of the Wild (Rank 2)
+Ability: Tier 2: Force Arrows (Rank 3)
+Ability: Tier 2: Inferno Shot (Rank 3)
+
+Tree: Eldritch Knight (Wizard)
+Type: Class
+Source: Wizard
+ClassLevels: 4
+Ability: Tier 0: Eldritch Strike
+Ability: Tier 0: Spellsword
+Ability: Tier 1: Improved Mage Armor (Rank 3)
+Ability: Tier 1: Arcane Siphon (Rank 2)
+

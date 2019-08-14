@@ -72,7 +72,35 @@ Class: Fighter 20	Heavy Armor Champion
 
 [Enhancements]
 
+Tier5: Vanguard
+
 Tree: Purple Dragon Knight
 Type: Race
 ClassLevels: 30
+
+Tree: Vanguard
+Type: Class
+Source: Fighter
+ClassLevels: 20
+Ability: Tier 0: To the Fore!
+Ability: Tier 0: Shield Combat I
+Ability: Tier 0: Vicious Shield I
+Ability: Tier 0: Shield Combat II
+Ability: Tier 0: Vicious Shield II
+Ability: Tier 0: Shield Champion
+Ability: Tier 1: Shield Specialization
+Ability: Tier 1: No Weakness (Rank 3)
+Ability: Tier 1: Shield Smash (Rank 3)
+Ability: Tier 1: Unbalancing Shove (Rank 3)
+Ability: Tier 2: Melee Power Boost (Rank 3)
+Ability: Tier 3: Follow Up (Rank 3)
+Ability: Tier 3: Fatal Bulwark
+Ability: Tier 3: Shield Riposte (Rank 3)
+Ability: Tier 4: Armor Mastery (Rank 3)
+Ability: Tier 4: Shield Charge (Rank 3)
+Ability: Tier 4: Myrmidon's Edge (Rank 3)
+Ability: Tier 5: Shield to the Face
+Ability: Tier 5: Disorienting Smash (Rank 3)
+Ability: Tier 5: Shield Charge (Rank 3)
+Ability: Tier 5: Armored Strength
 
