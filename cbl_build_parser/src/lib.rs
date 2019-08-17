@@ -20,28 +20,28 @@ use std::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CharacterBuild {
     // [Overview]
-    name:       String,
-    race:       Race,
-    alignment:  Alignment,
-    max_levels: u8,
-    levels:     Vec<Class>,
+    pub name:       String,
+    pub race:       Race,
+    pub alignment:  Alignment,
+    pub max_levels: u8,
+    pub levels:     Vec<Class>,
     // [Stats]
-    preferred_build_type: BuildType,
-    adventurer_stats:     Option<Stats>,
-    champion_stats:       Option<Stats>,
-    hero_stats:           Option<Stats>,
-    legend_stats:         Option<Stats>,
-    stat_tomes:           Stats,
-    stat_levelups:        [Option<Ability>; 7],
+    pub preferred_build_type: BuildType,
+    pub adventurer_stats:     Option<Stats>,
+    pub champion_stats:       Option<Stats>,
+    pub hero_stats:           Option<Stats>,
+    pub legend_stats:         Option<Stats>,
+    pub stat_tomes:           Stats,
+    pub stat_levelups:        [Option<Ability>; 7],
     // [Skills]
-    skills: Skills,
+    pub skills: Skills,
     // [Feats]
-    feats: Feats,
+    pub feats: Feats,
     // [Spells]
-    spells: Spells,
+    pub spells: Spells,
     // [Enhancements]
-    tier_five:    Option<EnhancementTreeName>,
-    enhancements: Enhancements,
+    pub tier_five:    Option<EnhancementTreeName>,
+    pub enhancements: Enhancements,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -382,6 +382,33 @@ impl std::str::FromStr for Race {
     }
 }
 
+impl fmt::Display for Race {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Self::Aasimar => f.write_str("Aasimar"),
+            Self::AasimarScourge => f.write_str("Aasimar Scourge"),
+            Self::Bladeforged => f.write_str("Bladeforged"),
+            Self::DeepGnome => f.write_str("Deep Gnome"),
+            Self::Dragonborn => f.write_str("Dragonborn"),
+            Self::Drow => f.write_str("Drow"),
+            Self::Dwarf => f.write_str("Dwarf"),
+            Self::Elf => f.write_str("Elf"),
+            Self::Gnome => f.write_str("Gnome"),
+            Self::HalfElf => f.write_str("Half-Elf"),
+            Self::Halfing => f.write_str("Halfing"),
+            Self::HalfOrc => f.write_str("Half-Orc"),
+            Self::Human => f.write_str("Human"),
+            Self::Morninglord => f.write_str("Morninglord"),
+            Self::PurpleDragonKnight => f.write_str("Purple Dragon Knight"),
+            Self::ShadarKai => f.write_str("Shadar-kai"),
+            Self::Tiefling => f.write_str("Tiefling"),
+            Self::TieflingScoundrel => f.write_str("Tiefling Scoundrel"),
+            Self::Warforged => f.write_str("Warforged"),
+            Self::WoodElf => f.write_str("Wood Elf"),
+        }
+    }
+}
+
 impl std::str::FromStr for Alignment {
     type Err = ();
 
@@ -394,6 +421,19 @@ impl std::str::FromStr for Alignment {
             "Chaotic Good" => Ok(Self::ChaoticGood),
             "Chaotic Neutral" => Ok(Self::ChaoticNeutral),
             _ => Err(()),
+        }
+    }
+}
+
+impl fmt::Display for Alignment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Self::LawfulGood => f.write_str("Lawful Good"),
+            Self::LawfulNeutral => f.write_str("Lawful Neutral"),
+            Self::NeutralGood => f.write_str("Neutral Good"),
+            Self::TrueNeutral => f.write_str("True Neutral"),
+            Self::ChaoticGood => f.write_str("Chaotic Good"),
+            Self::ChaoticNeutral => f.write_str("Chaotic Neutral"),
         }
     }
 }
@@ -418,6 +458,27 @@ impl std::str::FromStr for Class {
             "Warlock" => Ok(Self::Warlock),
             "Wizard" => Ok(Self::Wizard),
             _ => Err(()),
+        }
+    }
+}
+
+impl fmt::Display for Class {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Self::Artificer => f.write_str("Artificer"),
+            Self::Barbarian => f.write_str("Barbarian"),
+            Self::Bard => f.write_str("Bard"),
+            Self::Cleric => f.write_str("Cleric"),
+            Self::Druid => f.write_str("Druid"),
+            Self::FavoredSoul => f.write_str("Favored Soul"),
+            Self::Fighter => f.write_str("Fighter"),
+            Self::Monk => f.write_str("Monk"),
+            Self::Paladin => f.write_str("Paladin"),
+            Self::Ranger => f.write_str("Ranger"),
+            Self::Rogue => f.write_str("Rogue"),
+            Self::Sorcerer => f.write_str("Sorcerer"),
+            Self::Warlock => f.write_str("Warlock"),
+            Self::Wizard => f.write_str("Wizard"),
         }
     }
 }
